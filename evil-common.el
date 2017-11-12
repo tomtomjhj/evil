@@ -3837,6 +3837,10 @@ should be left-aligned for left justification."
   (tabulated-list-init-header)
   (tabulated-list-print))
 
+(defun evil-list-view-kill-buffer ()
+  (interactive)
+  (quit-window 'kill))
+
 (defun evil-list-view-goto-entry ()
   (interactive)
   (when (and evil-list-view-select-action
@@ -3845,7 +3849,7 @@ should be left-aligned for left justification."
            (entry (elt tabulated-list-entries (1- line))))
       (funcall evil-list-view-select-action (nth 1 entry)))))
 
-(define-key evil-list-view-mode-map (kbd "q") #'kill-this-buffer)
+(define-key evil-list-view-mode-map (kbd "q") #'evil-list-view-kill-buffer)
 (define-key evil-list-view-mode-map [follow-link] nil) ;; allows mouse-1 to be activated
 (define-key evil-list-view-mode-map [mouse-1] #'evil-list-view-goto-entry)
 (define-key evil-list-view-mode-map [return] #'evil-list-view-goto-entry)
@@ -3876,7 +3880,8 @@ PROPERTIES is a property-list which supports the following properties:
          (evil-list-view-mode)
          (setq mode-name ,(plist-get properties :mode-name))
          (evil-motion-state))
-       (switch-to-buffer-other-window buf))))
+       (switch-to-buffer-other-window buf)
+       (display-buffer-record-window 'reuse (selected-window) buf))))
 
 (provide 'evil-common)
 
