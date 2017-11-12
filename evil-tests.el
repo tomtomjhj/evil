@@ -8143,52 +8143,91 @@ maybe we need one line more with some text\n")
       ("dao")
       "These two lines \n[!]have punctuation on them")))
 
+(ert-deftest evil-test-loop-over-jumps ()
+  :tags '(evil jump)
+  (let ((ring (make-ring 5)) jl)
+    (ring-insert ring 1)
+    (ring-insert ring 2)
+    (ring-insert ring 'evil)
+    (ring-insert ring 3)
+    (ring-insert ring 4)
+    (setq jl (cons t (ring-copy ring)))
+    (evil-loop-over-jumps (jl jump forwardp)
+      (if forwardp
+          (should (or (= jump 1) (= jump 2)))
+        (should (or (= jump 3) (= jump 4))))
+      (= jump 2))
+    (should (equal (ring-elements ring) '(evil 2)))))
+
 (ert-deftest evil-test-jump ()
   :tags '(evil jumps)
-  (let ((evil--jumps-buffer-targets "\\*\\(new\\|scratch\\|test\\)\\*"))
+  (let ((evil-jumps-buffer-targets "\\*\\(new\\|scratch\\|test\\)\\*"))
+    (ert-info ("Test one jump point per line")
+      (evil-test-buffer
+       "[z] z z z z z z\na a a a a a a\n"
+       ("/z" [return] "nnnn")
+       "z z z z z [z] z\na a a a a a a\n"
+       ("/a" [return] "nnnn")
+       "z z z z z z z\na a a a [a] a a\n"
+       ("\C-o")
+       "z z z z z [z] z\na a a a a a a\n"
+       ("\C-i")
+       "z z z z z z z\na a a a [a] a a\n"))
+    (ert-info ("Test backward swap")
+      (evil-test-buffer
+       "[z]\nz\nz\nz\nz\nz\n"
+       ("/z" [return] "nnnnn")
+       "z\nz\nz\nz\nz\n[z]\n"
+       ("''")
+       "z\nz\nz\nz\n[z]\nz\n"
+       ("''")
+       "z\nz\nz\nz\nz\n[z]\n"
+       ("\C-o")
+       "z\nz\nz\nz\n[z]\nz\n"
+       ("''")
+       "z\nz\nz\nz\nz\n[z]\n"
+       ("\C-o")
+       "z\nz\nz\nz\n[z]\nz\n"))
     (ert-info ("Test jumping backward and forward in a single buffer")
       (evil-test-buffer
-        "[z] z z z z z z z z z"
-        ("/z" [return])
-        "z [z] z z z z z z z z"
-        ("nnnn")
-        "z z z z z [z] z z z z"
-        ("\C-o")
-        "z z z z [z] z z z z z"
-        ("\C-o")
-        "z z z [z] z z z z z z"
-        ("\C-i\C-i")
-        "z z z z z [z] z z z z"))
+       "[z]\nz\nz\nz\nz\nz\n"
+       ("/z" [return] "nnnnn")
+       "z\nz\nz\nz\nz\n[z]\n"
+       ("\C-o")
+       "z\nz\nz\nz\n[z]\nz\n"
+       ("\C-o")
+       "z\nz\nz\n[z]\nz\nz\n"
+       ("\C-i\C-i")
+       "z\nz\nz\nz\nz\n[z]\n"))
     (ert-info ("Test jumping backward and forward across buffers")
       (evil-test-buffer
-        "[z] z z z z z z z z z"
-        (":new" [return] "inew buffer" [escape])
-        "new buffe[r]"
-        ("\C-o")
-        "[z] z z z z z z z z z"
-        ("\C-i")
-        "new buffe[r]"))
+       "[z] z z z z z z z z z"
+       (":new" [return] "inew buffer" [escape])
+       "new buffe[r]"
+       ("\C-o")
+       "[z] z z z z z z z z z"
+       ("\C-i")
+       "new buffe[r]"))
     (ert-info ("Test jumping backward and forward with counts")
       (evil-test-buffer
-        "[z] z z z z z z z z z"
-        ("/z" [return] "nnnn")
-        "z z z z z [z] z z z z"
-        ("3\C-o")
-        "z z [z] z z z z z z z"
-        ("2\C-i")
-        "z z z z [z] z z z z z"
-        ))
+       "[z]\nz\nz\nz\nz\nz\n"
+       ("/z" [return] "nnnnn")
+       "z\nz\nz\nz\nz\n[z]\n"
+       ("3\C-o")
+       "z\nz\n[z]\nz\nz\nz\n"
+       ("2\C-i")
+       "z\nz\nz\nz\n[z]\nz\n"))
     (ert-info ("Jump list branches off when new jump is set")
       (evil-test-buffer
-        "[z] z z z z z z z"
-        ("/z" [return] "nnnn4\C-o") ;; adds a bunch of jumps after the 2nd z
-        "z [z] z z z z z z"
-        ("/z" [return]) ;; sets a new jump, list should be reset
-        "z z [z] z z z z z"
-        ("\C-o")
-        "z [z] z z z z z z"
-        ("3\C-i") ;; even after jumping forward 3 times it can't get past the 3rd z
-        "z z [z] z z z z z"))))
+       "[z]\nz\nz\nz\nz\nz\n"
+       ("/z" [return] "nnnn4\C-o") ;; adds a bunch of jumps after the 2nd z
+       "[z]\nz\nz\nz\nz\nz\n"
+       ("/z" [return] "nn") ;; sets a new jump, list should be reset
+       "z\nz\n[z]\nz\nz\nz\n"
+       ("\C-o")
+       "z\n[z]\nz\nz\nz\nz\n"
+       ("3\C-i") ;; even after jumping forward 3 times it can't get past the 3rd z
+       "z\nz\n[z]\nz\nz\nz\n"))))
 
 (ert-deftest evil-test-abbrev-expand ()
   :tags '(evil abbrev)
@@ -8247,33 +8286,33 @@ maybe we need one line more with some text\n")
      "| foo |testing| bar |")))
 
 (ert-deftest evil-test-undo-kbd-macro ()
-  "Test if evil can undo the changes made by a keyboard macro 
+  "Test if evil can undo the changes made by a keyboard macro
 when an error stops the execution of the macro"
   :tags '(evil undo kbd-macro)
   (ert-info ("When kbd-macro goes to the end of buffer")
     (evil-test-buffer
- 	 "[l]ine 1\nline 2\nline 3\nline 4"
+     "[l]ine 1\nline 2\nline 3\nline 4"
      (evil-set-register ?q "jdd")
      ("jdd")
      (should-error (execute-kbd-macro "2@q"))
- 	 ("uu")
- 	 "line 1\n[l]ine 2\nline 3\nline 4"))
+     ("uu")
+     "line 1\n[l]ine 2\nline 3\nline 4"))
   (ert-info ("When kbd-macro goes to the end of line")
     (evil-test-buffer
- 	 "[f]ofof"
+     "[f]ofof"
      (evil-set-register ?q "lx")
      ("lx")
      (should-error (execute-kbd-macro "2@q"))
- 	 ("uu")
- 	 "f[o]fof"))
+     ("uu")
+     "f[o]fof"))
   (ert-info ("When kbd-macro goes to the beginning of buffer")
     (evil-test-buffer
- 	 "line 1\nline 2\n[l]ine 3"
+     "line 1\nline 2\n[l]ine 3"
      (evil-set-register ?q "kx")
      ("kx")
      (should-error (execute-kbd-macro "2@q"))
- 	 ("uu")
- 	 "line 1\n[l]ine 2\nline 3")))
+     ("uu")
+     "line 1\n[l]ine 2\nline 3")))
 
 (ert-deftest evil-test-visual-update-x-selection ()
   "Test `evil-visual-update-x-selection'."
