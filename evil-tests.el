@@ -8230,7 +8230,8 @@ the last."
 
 (ert-deftest evil-test-jump ()
   :tags '(evil jumps)
-  (let ((evil-jumps-buffer-targets "\\*\\(new\\|scratch\\|test\\)\\*"))
+  (let ((evil-jumps-allowed-buffer-patterns
+         (append '("\\*test\\*") evil-jumps-allowed-buffer-patterns)))
     (ert-info ("Test one jump point per line")
       (evil-test-buffer
        "[z] z z z z z z\na a a a a a a\n"
