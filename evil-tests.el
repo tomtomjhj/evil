@@ -3,7 +3,7 @@
 ;; Author: Vegard Øye <vegard_oye at hotmail.com>
 ;; Maintainer: Vegard Øye <vegard_oye at hotmail.com>
 
-;; Version: 1.2.14
+;; Version: 1.12.16
 
 ;;
 ;; This file is NOT part of GNU Emacs.
@@ -61,6 +61,7 @@
 ;;
 ;; This file is NOT part of Evil itself.
 
+(require 'cl-lib)
 (require 'elp)
 (require 'ert)
 (require 'evil)
@@ -115,7 +116,24 @@ with `M-x evil-tests-run'"))
       (ert-run-tests-batch tests)
       (elp-results))
      (t
-      (ert-run-tests-batch-and-exit tests)))))
+      ;; We would like to use `ert-run-tests-batch-and-exit'
+      ;; Unfortunately it doesn't work outside of batch mode, and we
+      ;; can't use batch mode because we have tests that need windows.
+      ;; Instead, run the tests interactively, copy the results to a
+      ;; text file, and then exit with an appropriate code.
+      (setq attempt-stack-overflow-recovery nil
+            attempt-orderly-shutdown-on-fatal-signal nil)
+      (unwind-protect
+          (progn
+            (ert-run-tests-interactively tests)
+            (with-current-buffer "*ert*"
+              (append-to-file (point-min) (point-max) "test-results.txt")
+              (kill-emacs (if (zerop (ert-stats-completed-unexpected ert--results-stats)) 0 1))))
+        (unwind-protect
+            (progn
+              (append-to-file "Error running tests\n" nil "test-results.txt")
+              (append-to-file (backtrace-to-string (backtrace-get-frames 'backtrace)) nil "test-results.txt"))
+          (kill-emacs 2)))))))
 
 (defun evil-tests-profiler (&optional force)
   "Profile Evil tests."
@@ -2694,7 +2712,7 @@ This bufferThis bufferThis buffe[r];; and for Lisp evaluation."))
       ";[;] This buffer is for notes."))
   (ert-info ("End of line")
     (let ((evil-cross-lines t)
-          (evil-move-cursor-back t))
+          (evil-move-beyond-eol nil))
       (evil-test-buffer
         ";; This buffer is for notes[,]
 ;; and for Lisp evaluation."
@@ -5129,6 +5147,7 @@ Below some empty line."))
 (ert-deftest evil-test-flyspell-motions ()
   "Test flyspell motions"
   :tags '(evil motion)
+  (skip-unless (executable-find "aspell"))
   (ert-info ("Simple")
     (evil-test-buffer
       "[I] cannt tpye for lyfe"
@@ -6523,7 +6542,22 @@ if no previous selection")
                     (evil-ex-line (string-to-number "5") nil)
                     (evil-ex-line (string-to-number "2") nil))
                    "arg"
-                   nil))))
+                   nil)))
+  (should (equal (evil-ex-parse "+1,+2t-1")
+                 '(evil-ex-call-command
+                   (evil-ex-range
+                    (evil-ex-line
+                     nil
+                     (+ (evil-ex-signed-number
+                         (intern "+")
+                         (string-to-number "1"))))
+                    (evil-ex-line
+                     nil
+                     (+ (evil-ex-signed-number
+                         (intern "+")
+                         (string-to-number "2")))))
+                   "t"
+                   "-1"))))
 
 (ert-deftest evil-test-ex-parse-ranges ()
   "Test parsing of ranges"
@@ -6612,7 +6646,9 @@ if no previous selection")
   (should (equal (evil-ex-parse "yas/reload-all")
                  '(evil-ex-call-command nil "yas/reload-all" nil)))
   (should (equal (evil-ex-parse "mu4e")
-                 '(evil-ex-call-command nil "mu4e" nil))))
+                 '(evil-ex-call-command nil "mu4e" nil)))
+  (should (equal (evil-ex-parse "make-frame")
+                 '(evil-ex-call-command nil "make-frame" nil))))
 
 (ert-deftest evil-text-ex-search-offset ()
   "Test for addresses like /base//pattern/"
@@ -7333,6 +7369,13 @@ maybe we need one line more with some text\n")
       "no 1\nno 2\nno x\nyes 4\nno x\nno x\n[n]o 7\n"
       ("u")
      "no 1\nno 2\nno [3]\nyes 4\nno 5\nno 6\nno 7\n"))
+  (ert-info ("global substitute with trailing slash")
+    (evil-test-buffer
+      "[n]o 1\nno 2\nno 3\nyes 4\nno 5\nno 6\nno 7\n"
+      (":g/no/s/[3-6]/x/" [return])
+      "no 1\nno 2\nno x\nyes 4\nno x\nno x\n[n]o 7\n"
+      ("u")
+      "no 1\nno 2\nno [3]\nyes 4\nno 5\nno 6\nno 7\n"))
   (evil-select-search-module 'evil-search-module 'evil-search)
   (ert-info ("global use last match if none given, with evil-search")
     (evil-test-buffer
@@ -8298,6 +8341,19 @@ the last."
        "z\n[z]\nz\nz\nz\nz\n"
        ("3\C-i") ;; even after jumping forward 3 times it can't get past the 3rd z
        "z\nz\n[z]\nz\nz\nz\n"))))
+
+(ert-deftest evil-test-jump-buffers ()
+  :tags '(evil jums)
+  (skip-unless nil)
+  (ert-info ("Test jumping backward and forward across buffers")
+    (evil-test-buffer
+      "[z] z z z z z z z z z"
+      (":new" [return] "inew buffer" [escape])
+      "new buffe[r]"
+      ("\C-o")
+      "[z] z z z z z z z z z"
+      ("\C-i")
+      "new buffe[r]")))
 
 (ert-deftest evil-test-abbrev-expand ()
   :tags '(evil abbrev)
