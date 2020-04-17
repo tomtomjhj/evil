@@ -573,6 +573,8 @@ remove jumps that are considered equivalent, see
       (ring-remove ring (1- (ring-member ring 'evil))))
     (ring-insert ring jump)))
 
+(defun evil--jumps-push () (evil-set-jump))
+
 ;;; Copying the jumplist
 
 (defun evil-maybe-copy-jumplist (jumplist)
